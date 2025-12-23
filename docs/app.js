@@ -1,1 +1,2 @@
+const photoId = crypto.randomUUID();
 

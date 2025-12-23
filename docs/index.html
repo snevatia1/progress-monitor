@@ -4,73 +4,58 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Progress Monitor</title>
-  <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <header>
-    <h1 id="title">Progress Monitor</h1>
-    <div id="sub"></div>
-  </header>
+  <h1>Progress Monitor</h1>
+  <div id="windowLabel">लोड हो रहा है…</div>
 
-  <main>
-    <div id="fatal" style="display:none; margin:12px; padding:12px; border:1px solid #f00; border-radius:10px;">
-      <b>App error:</b>
-      <pre id="fatalMsg" style="white-space:pre-wrap;"></pre>
-    </div>
+  <div style="margin:12px 0;">
+    <label>साइट चुनें</label>
+    <select id="siteSelect"></select>
 
-    <section class="card">
-      <h2 id="windowLabel">लोड हो रहा है…</h2>
+    <label style="margin-left:12px;">
+      <input type="checkbox" id="scaleUsed" />
+      स्केल/टेप इस्तेमाल किया
+    </label>
+  </div>
 
-      <label>साइट चुनें</label>
-      <select id="siteSelect"></select>
+  <div style="margin:12px 0;">
+    <button id="startCamera">कैमरा चालू करें</button>
+    <button id="capture" disabled>फोटो लें</button>
+  </div>
 
-      <label class="row">
-        <input type="checkbox" id="scaleUsed" />
-        <span>स्केल/टेप इस्तेमाल किया</span>
-      </label>
+  <video id="video" autoplay playsinline style="width:100%;max-width:520px;background:#000;"></video>
+  <canvas id="canvas" style="display:none;"></canvas>
 
-      <div class="row">
-        <button id="startCamera">कैमरा चालू करें</button>
-        <button id="capture" disabled>फोटो लें</button>
-      </div>
+  <div id="status" style="margin-top:12px;"></div>
 
-      <video id="video" autoplay playsinline></video>
-      <canvas id="canvas" style="display:none;"></canvas>
+  <div style="margin:12px 0;">
+    <button id="syncNow">अभी सिंक करें</button>
+  </div>
 
-      <div id="status" class="status"></div>
-      <div class="row">
-        <button id="syncNow">अभी सिंक करें</button>
-      </div>
-    </section>
+  <h2>ऑफलाइन क्यू</h2>
+  <div id="queue"></div>
 
-    <section class="card">
-      <h2>ऑफलाइन क्यू</h2>
-      <div id="queue"></div>
-    </section>
-  </main>
+  <div id="fatal" style="display:none; margin-top:12px; padding:12px; border:1px solid red;">
+    <b>App error:</b>
+    <pre id="fatalMsg" style="white-space:pre-wrap;"></pre>
+  </div>
 
   <script>
-    // Show JS errors on screen instead of blank page
     window.addEventListener("error", (e) => {
-      const box = document.getElementById("fatal");
-      const msg = document.getElementById("fatalMsg");
-      box.style.display = "block";
-      msg.textContent = (e && e.message) ? e.message : String(e);
+      document.getElementById("fatal").style.display = "block";
+      document.getElementById("fatalMsg").textContent = e.message || String(e);
     });
   </script>
 
-  <!-- IMPORTANT: load config + db BEFORE app.js -->
   <script src="./config.js"></script>
   <script src="./db.js"></script>
   <script src="./app.js"></script>
 
   <script>
-    // Register SW (after everything loads)
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js");
-    }
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
   </script>
 </body>
 </html>
-

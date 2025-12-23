@@ -164,7 +164,7 @@ async function start() {
     ctx2.drawImage(video, 0, 0);
 
     // JPEG compressed (important for Apps Script)
-    const jpegBase64 = canvas.toDataURL("image/jpeg", 0.70);
+    const jpegBase64 = canvas.toDataURL("image/jpeg", 0.60);
 
     const photoId = makeId();
     const item = {

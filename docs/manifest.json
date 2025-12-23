@@ -1,11 +1,11 @@
 {
   "name": "Progress Monitor",
   "short_name": "Progress",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#111111",
-  "icons": []
+  "theme_color": "#111111"
 }
+
 

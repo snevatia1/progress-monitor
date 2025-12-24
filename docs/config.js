@@ -8,7 +8,7 @@ window.APP_CONFIG = {
     EVENING: "17:30"
   },
 
-  UPLOAD_ENDPOINT: "https://script.google.com/macros/s/AKfycbyV4kqQT5vWB5Fck5U1e0fOWbaOEbLP28MVskePktQ1rZhQDTbel4ont-8lK_jv7TGv/exec",
+  UPLOAD_ENDPOINT: "https://script.google.com/macros/s/AKfycbwFIGsNA8mIhQzyhmf4ITKcP2iu8zUtGlDm7qxRvV_rMCX0oBFzZ9SvANvJhh0m7_BcQw/exec",
 
   WORKER_ID: "worker_001",
   WORKER_NAME_HI: "वर्कर 001",

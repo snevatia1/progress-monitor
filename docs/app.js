@@ -101,11 +101,20 @@ async function syncQueue() {
 
 async function start() {
   if (!cfg) throw new Error("APP_CONFIG missing. config.js not loaded?");
-  await openDb();
 
-  // UI labels
+  // Always update UI immediately (so it never stays "loading")
   setText("windowLabel", `आज की विंडो: ${getCurrentWindow()}`);
-  setText("status", "तैयार है। कैमरा चालू करें।");
+  setText("status", "ऐप शुरू हो रहा है...");
+
+  // Try DB, but do not block the app if it fails
+  try {
+    await openDb();
+    setText("status", "DB OK. कैमरा चालू करें।");
+  } catch (e) {
+    console.error("IndexedDB/openDb failed:", e);
+    setText("status", "DB फेल (ब्राउज़र सेटिंग). ऑफलाइन क्यू काम नहीं करेगा, लेकिन अपलोड चलेगा।");
+    // We will still allow capture + direct upload later if needed
+  }
 
   // Populate sites
   const sel = document.getElementById("siteSelect");

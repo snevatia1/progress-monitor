@@ -205,7 +205,7 @@ captureBtn.onclick = async () => {
     ctx2.drawImage(video, 0, 0);
 
     // Keep small for Apps Script
-    const jpegBase64 = canvas.toDataURL("image/jpeg", 0.60);
+    const jpegBase64 = canvas.toDataURL("image/jpeg", 0.45);
 
     // 2) Create item with GPS = null initially
     const photoId = makeId();

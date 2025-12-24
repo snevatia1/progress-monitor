@@ -170,67 +170,79 @@ async function start() {
     }
   };
 
-  captureBtn.onclick = async () => {
-    try {
-      const siteId = sel.value;
-      const site = siteById(siteId);
-      if (!site) { setText("status", "साइट चुनें।"); return; }
+captureBtn.onclick = async () => {
+  try {
+    const siteId = sel.value;
+    const site = siteById(siteId);
+    if (!site) { setText("status", "साइट चुनें।"); return; }
 
-      const scaleEl = document.getElementById("scaleUsed");
-      const scaleUsed = scaleEl ? scaleEl.checked : false;
+    const scaleEl = document.getElementById("scaleUsed");
+    const scaleUsed = scaleEl ? scaleEl.checked : false;
 
-      // GPS (max 5 sec)
-      setText("status", "लोकेशन (5 सेकंड तक)…");
-      const geo = await getGeo();
-      if (geo.err) {
-        setText("status", "लोकेशन नहीं मिली, फिर भी फोटो सेव हो रही है…");
-      }
+    // 1) CAPTURE IMAGE FIRST (never wait for GPS)
+    const video = document.getElementById("video");
+    if (!video.videoWidth) {
+      setText("status", "वीडियो तैयार नहीं है। 2 सेकंड बाद फोटो लें।");
+      return;
+    }
 
-      // Capture frame
-      const video = document.getElementById("video");
-      if (!video.videoWidth) {
-        setText("status", "वीडियो तैयार नहीं है। 2 सेकंड बाद फोटो लें।");
-        return;
-      }
+    const canvas = document.getElementById("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx2 = canvas.getContext("2d");
+    ctx2.drawImage(video, 0, 0);
 
-      const canvas = document.getElementById("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx2 = canvas.getContext("2d");
-      ctx2.drawImage(video, 0, 0);
+    // Keep small for Apps Script
+    const jpegBase64 = canvas.toDataURL("image/jpeg", 0.60);
 
-      // Keep small for Apps Script
-      const jpegBase64 = canvas.toDataURL("image/jpeg", 0.60);
+    // 2) Create item with GPS = null initially
+    const photoId = makeId();
+    const item = {
+      photoId,
+      workerId: cfg.WORKER_ID,
+      workerNameHi: cfg.WORKER_NAME_HI,
+      projectId: "PROJECT_1",
+      siteId,
+      siteNameHi: site.nameHi,
+      taskId: null,
+      windowType: getCurrentWindow(),
+      capturedAtIso: nowIso(),
 
-      const photoId = makeId();
-      const item = {
-        photoId,
-        workerId: cfg.WORKER_ID,
-        workerNameHi: cfg.WORKER_NAME_HI,
-        projectId: "PROJECT_1",
-        siteId,
-        siteNameHi: site.nameHi,
-        taskId: null,
-        windowType: getCurrentWindow(),
-        capturedAtIso: nowIso(),
-        lat: geo.lat,
-        lng: geo.lng,
-        accuracyM: geo.acc,
-        geoStatus: "UNKNOWN",
-        scaleUsed,
-        imageBase64: jpegBase64,
-        uploadState: "PENDING"
-      };
+      lat: null,
+      lng: null,
+      accuracyM: null,
+      geoStatus: "UNKNOWN",
 
+      scaleUsed,
+      imageBase64: jpegBase64,
+      uploadState: "PENDING"
+    };
+
+    // Save immediately
+    await qPut(item);
+    await renderQueue();
+    setText("status", "फोटो सेव हो गई। लोकेशन लेने की कोशिश हो रही है…");
+
+    // 3) Try GPS in background (do not block)
+    const geo = await getGeo();
+    if (geo && !geo.err && geo.lat != null) {
+      item.lat = geo.lat;
+      item.lng = geo.lng;
+      item.accuracyM = geo.acc;
+      // update stored item with GPS
       await qPut(item);
       await renderQueue();
-      setText("status", "फोटो सेव हो गई। अब 'अभी सिंक करें' दबाएँ।");
-
-    } catch (e) {
-      console.error(e);
-      setText("status", "एरर: " + String(e));
+      setText("status", "लोकेशन सेव हो गई। अब 'अभी सिंक करें' दबाएँ।");
+    } else {
+      setText("status", "लोकेशन नहीं मिली। फिर भी फोटो ठीक है। अब 'अभी सिंक करें' दबाएँ।");
     }
-  };
+
+  } catch (e) {
+    console.error(e);
+    setText("status", "एरर: " + String(e));
+  }
+};
+
 
   syncBtn.onclick = syncQueue;
   window.addEventListener("online", syncQueue);

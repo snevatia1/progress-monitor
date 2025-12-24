@@ -8,7 +8,6 @@ function setText(id, msg) {
 function nowIso() { return new Date().toISOString(); }
 
 function getCurrentWindow() {
-  // Simple time-based window (you can refine later)
   const t = new Date();
   const hh = String(t.getHours()).padStart(2, "0");
   const mm = String(t.getMinutes()).padStart(2, "0");
@@ -18,15 +17,36 @@ function getCurrentWindow() {
   return "EVENING";
 }
 
+// HARD-TIMEOUT GEO so it never hangs
 async function getGeo() {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) return resolve({ lat: null, lng: null, acc: null });
-    navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }),
-      (_) => resolve({ lat: null, lng: null, acc: null }),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 20000 }
-    );
-  });
+  const hardTimeoutMs = 5000;
+
+  return await Promise.race([
+    new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        return resolve({ lat: null, lng: null, acc: null, err: "NO_GEO" });
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve({
+          lat: p.coords.latitude,
+          lng: p.coords.longitude,
+          acc: p.coords.accuracy,
+          err: null
+        }),
+        (e) => resolve({
+          lat: null,
+          lng: null,
+          acc: null,
+          err: (e && e.message) ? e.message : "GEO_DENIED"
+        }),
+        { enableHighAccuracy: false, timeout: 4000, maximumAge: 60000 }
+      );
+    }),
+    new Promise((resolve) =>
+      setTimeout(() => resolve({ lat: null, lng: null, acc: null, err: "GEO_TIMEOUT" }), hardTimeoutMs)
+    )
+  ]);
 }
 
 function makeId() {
@@ -41,11 +61,12 @@ function siteById(id) {
 
 async function renderQueue() {
   const items = await qGetAll();
+  const q = document.getElementById("queue");
   if (!items.length) {
-    document.getElementById("queue").textContent = "क्यू खाली है।";
+    q.textContent = "क्यू खाली है।";
     return;
   }
-  document.getElementById("queue").innerHTML = items
+  q.innerHTML = items
     .map(i => `• ${i.siteNameHi} | ${i.windowType} | ${i.capturedAtIso} | ${i.uploadState}`)
     .join("<br/>");
 }
@@ -93,7 +114,8 @@ async function syncQueue() {
       it.uploadState = "FAILED";
       await qPut(it);
       await renderQueue();
-      setText("status", `अपलोड फेल: ${it.siteNameHi} (नेट/परमिशन/URL)`);
+      console.error(e);
+      setText("status", `अपलोड फेल: ${it.siteNameHi} : ${String(e)}`);
       break;
     }
   }
@@ -102,18 +124,17 @@ async function syncQueue() {
 async function start() {
   if (!cfg) throw new Error("APP_CONFIG missing. config.js not loaded?");
 
-  // Always update UI immediately (so it never stays "loading")
+  // Update UI immediately
   setText("windowLabel", `आज की विंडो: ${getCurrentWindow()}`);
   setText("status", "ऐप शुरू हो रहा है...");
 
-  // Try DB, but do not block the app if it fails
+  // Try DB but do not block app
   try {
     await openDb();
     setText("status", "DB OK. कैमरा चालू करें।");
   } catch (e) {
     console.error("IndexedDB/openDb failed:", e);
-    setText("status", "DB फेल (ब्राउज़र सेटिंग). ऑफलाइन क्यू काम नहीं करेगा, लेकिन अपलोड चलेगा।");
-    // We will still allow capture + direct upload later if needed
+    setText("status", "DB फेल. ऑफलाइन क्यू नहीं चलेगा, लेकिन अपलोड चलेगा।");
   }
 
   // Populate sites
@@ -144,82 +165,74 @@ async function start() {
       captureBtn.disabled = false;
       setText("status", "कैमरा चालू है। अब फोटो लें।");
     } catch (e) {
+      console.error(e);
       setText("status", "कैमरा नहीं चला। परमिशन Allow करें।");
-      throw e;
     }
   };
 
   captureBtn.onclick = async () => {
-    const siteId = sel.value;
-    const site = siteById(siteId);
-    if (!site) { setText("status", "साइट चुनें।"); return; }
+    try {
+      const siteId = sel.value;
+      const site = siteById(siteId);
+      if (!site) { setText("status", "साइट चुनें।"); return; }
 
-    const scaleUsed = document.getElementById("scaleUsed").checked;
+      const scaleEl = document.getElementById("scaleUsed");
+      const scaleUsed = scaleEl ? scaleEl.checked : false;
 
-    // GPS
-    setText("status", "लोकेशन ले रहा है...");
-    async function getGeo() {
-  // hard timeout so app never hangs
-  const hardTimeoutMs = 5000;
+      // GPS (max 5 sec)
+      setText("status", "लोकेशन (5 सेकंड तक)…");
+      const geo = await getGeo();
+      if (geo.err) {
+        setText("status", "लोकेशन नहीं मिली, फिर भी फोटो सेव हो रही है…");
+      }
 
-  return await Promise.race([
-    new Promise((resolve) => {
-      if (!navigator.geolocation) return resolve({ lat: null, lng: null, acc: null, err: "NO_GEO" });
+      // Capture frame
+      const video = document.getElementById("video");
+      if (!video.videoWidth) {
+        setText("status", "वीडियो तैयार नहीं है। 2 सेकंड बाद फोटो लें।");
+        return;
+      }
 
-      navigator.geolocation.getCurrentPosition(
-        (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, err: null }),
-        (e) => resolve({ lat: null, lng: null, acc: null, err: e && e.message ? e.message : "GEO_DENIED" }),
-        { enableHighAccuracy: false, timeout: 4000, maximumAge: 60000 }
-      );
-    }),
-    new Promise((resolve) => setTimeout(() =>
-      resolve({ lat: null, lng: null, acc: null, err: "GEO_TIMEOUT" }), hardTimeoutMs))
-  ]);
-}
+      const canvas = document.getElementById("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx2 = canvas.getContext("2d");
+      ctx2.drawImage(video, 0, 0);
 
-    // Capture frame
-    const video = document.getElementById("video");
-    if (!video.videoWidth) {
-      setText("status", "वीडियो तैयार नहीं है। 2 सेकंड बाद फोटो लें।");
-      return;
+      // Keep small for Apps Script
+      const jpegBase64 = canvas.toDataURL("image/jpeg", 0.60);
+
+      const photoId = makeId();
+      const item = {
+        photoId,
+        workerId: cfg.WORKER_ID,
+        workerNameHi: cfg.WORKER_NAME_HI,
+        projectId: "PROJECT_1",
+        siteId,
+        siteNameHi: site.nameHi,
+        taskId: null,
+        windowType: getCurrentWindow(),
+        capturedAtIso: nowIso(),
+        lat: geo.lat,
+        lng: geo.lng,
+        accuracyM: geo.acc,
+        geoStatus: "UNKNOWN",
+        scaleUsed,
+        imageBase64: jpegBase64,
+        uploadState: "PENDING"
+      };
+
+      await qPut(item);
+      await renderQueue();
+      setText("status", "फोटो सेव हो गई। अब 'अभी सिंक करें' दबाएँ।");
+
+    } catch (e) {
+      console.error(e);
+      setText("status", "एरर: " + String(e));
     }
-    const canvas = document.getElementById("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx2 = canvas.getContext("2d");
-    ctx2.drawImage(video, 0, 0);
-
-    // JPEG compressed (important for Apps Script)
-    const jpegBase64 = canvas.toDataURL("image/jpeg", 0.60);
-
-    const photoId = makeId();
-    const item = {
-      photoId,
-      workerId: cfg.WORKER_ID,
-      workerNameHi: cfg.WORKER_NAME_HI,
-      projectId: "PROJECT_1",
-      siteId,
-      siteNameHi: site.nameHi,
-      taskId: null,
-      windowType: getCurrentWindow(),
-      capturedAtIso: nowIso(),
-      lat: geo.lat,
-      lng: geo.lng,
-      accuracyM: geo.acc,
-      geoStatus: "UNKNOWN", // (geo fence later)
-      scaleUsed,
-      imageBase64: jpegBase64,
-      uploadState: "PENDING"
-    };
-
-    await qPut(item);
-    await renderQueue();
-    setText("status", "फोटो सेव हो गई। सिंक करें या बाद में ऑटो सिंक हो जाएगा।");
   };
 
   syncBtn.onclick = syncQueue;
-
-  // Auto sync when online
   window.addEventListener("online", syncQueue);
 
   await renderQueue();

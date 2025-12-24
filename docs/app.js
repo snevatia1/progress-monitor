@@ -72,14 +72,18 @@ async function renderQueue() {
 }
 
 async function uploadOne(item) {
-  const res = await fetch(cfg.UPLOAD_ENDPOINT, {
+  // NOTE: no-cors => browser will not let us read JSON response.
+  // We treat "request sent" as success and verify via Sheet/Drive.
+  await fetch(cfg.UPLOAD_ENDPOINT, {
     method: "POST",
+    mode: "no-cors",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(item)
   });
-  if (!res.ok) throw new Error("Upload failed: " + res.status);
-  return await res.json();
+
+  return { ok: true };
 }
+
 
 async function syncQueue() {
   const items = await qGetAll();
@@ -100,7 +104,7 @@ async function syncQueue() {
 
       if (out && out.ok) {
         await qDelete(it.photoId);
-        setText("status", `अपलोड हो गया: ${it.siteNameHi} (${out.color || "OK"})`);
+       setText("status", `अपलोड भेज दिया: ${it.siteNameHi} (शीट में चेक करें)`);
       } else {
         it.uploadState = "FAILED";
         await qPut(it);

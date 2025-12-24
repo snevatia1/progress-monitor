@@ -158,7 +158,24 @@ async function start() {
 
     // GPS
     setText("status", "लोकेशन ले रहा है...");
-    const geo = await getGeo();
+    async function getGeo() {
+  // hard timeout so app never hangs
+  const hardTimeoutMs = 5000;
+
+  return await Promise.race([
+    new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve({ lat: null, lng: null, acc: null, err: "NO_GEO" });
+
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, err: null }),
+        (e) => resolve({ lat: null, lng: null, acc: null, err: e && e.message ? e.message : "GEO_DENIED" }),
+        { enableHighAccuracy: false, timeout: 4000, maximumAge: 60000 }
+      );
+    }),
+    new Promise((resolve) => setTimeout(() =>
+      resolve({ lat: null, lng: null, acc: null, err: "GEO_TIMEOUT" }), hardTimeoutMs))
+  ]);
+}
 
     // Capture frame
     const video = document.getElementById("video");

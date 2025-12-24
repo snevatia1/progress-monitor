@@ -103,7 +103,15 @@ async function syncQueue() {
       const out = await uploadOne(it);
 
       if (out && out.ok) {
-        await qDelete(it.photoId);
+  // Keep in queue for now; mark SENT.
+  it.uploadState = "SENT";
+  await qPut(it);
+  await renderQueue();
+  setText("status", `अपलोड भेज दिया: ${it.siteNameHi} (शीट में चेक करें)`);
+} else {
+  ...
+}
+
        setText("status", `अपलोड भेज दिया: ${it.siteNameHi} (शीट में चेक करें)`);
       } else {
         it.uploadState = "FAILED";
